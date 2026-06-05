@@ -1,0 +1,24 @@
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.uri {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.isrc {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+}
+
+.fuzzy {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+}
