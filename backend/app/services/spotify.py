@@ -12,8 +12,11 @@ Spotify API reference: https://developer.spotify.com/documentation/web-api
 """
 
 import asyncio
+import logging
 
 import httpx
+
+log = logging.getLogger(__name__)
 
 from app.types import Playlist, PlaylistTrack, SpotifyUser
 from app.utils.paginate import paginate_spotify
@@ -133,13 +136,24 @@ class SpotifyService:
                 album = track.get("album", {})
                 images = album.get("images") or []
                 image_url = images[0]["url"] if images else None
+                restrictions = track.get("restrictions", {})
+
+                raw_name = track.get("name") or ""
+                if not raw_name:
+                    reason_code = restrictions.get("reason", "") if restrictions else ""
+                    reason_label = {
+                        "market": "not available in your region",
+                        "product": "requires Spotify Premium",
+                        "explicit": "blocked by explicit content filter",
+                    }.get(reason_code, "unavailable")
+                    raw_name = f"[Unavailable — {reason_label}]"
 
                 tracks.append(
                     PlaylistTrack(
                         position=position,
                         uri=track["uri"],
                         id=track["id"],
-                        name=track["name"],
+                        name=raw_name,
                         artists=artists,
                         album=album.get("name", ""),
                         image_url=image_url,
@@ -227,13 +241,32 @@ class SpotifyService:
                 images = album.get("images") or []
                 image_url = images[0]["url"] if images else None
                 added_by_data = item.get("added_by")
+                is_local = item.get("is_local", False)
+                restrictions = track.get("restrictions", {})
+                is_restricted = bool(restrictions)
+
+                # Build a readable name for tracks Spotify returns with no metadata
+                raw_name = track.get("name") or ""
+                if not raw_name:
+                    if is_local:
+                        raw_name = "[Local file]"
+                    elif is_restricted:
+                        reason_code = restrictions.get("reason", "")
+                        reason_label = {
+                            "market": "not available in your region",
+                            "product": "requires Spotify Premium",
+                            "explicit": "blocked by explicit content filter",
+                        }.get(reason_code, "unavailable")
+                        raw_name = f"[Unavailable — {reason_label}]"
+                    else:
+                        raw_name = f"[Unknown track {track.get('id', '')}]"
 
                 tracks.append(
                     PlaylistTrack(
                         position=position,
                         uri=track["uri"],
                         id=track["id"],
-                        name=track["name"],
+                        name=raw_name,
                         artists=artists,
                         album=album.get("name", ""),
                         image_url=image_url,
@@ -310,7 +343,7 @@ class SpotifyService:
             "DELETE",
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
             headers=self._headers,
-            json={"tracks": batch},  # "tracks" key still accepted by /items endpoint
+            json={"items": batch},
         )
         if resp.status_code == 429:
             await asyncio.sleep(int(resp.headers.get("Retry-After", 1)))
@@ -318,7 +351,9 @@ class SpotifyService:
                 "DELETE",
                 f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
                 headers=self._headers,
-                json={"tracks": batch},
+                json={"items": batch},
             )
+        if not resp.is_success:
+            log.error("_delete_tracks: Spotify %s — %s", resp.status_code, resp.text)
         resp.raise_for_status()
         return resp

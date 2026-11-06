@@ -59,9 +59,16 @@ export function TrackRow({ track, groupId, isKept, onKeep }: Props) {
       />
 
       <div className={styles.info}>
-        <span className={styles.name}>{track.name}</span>
-        <span className={styles.artists}>{track.artists.join(', ')}</span>
-        <span className={styles.album}>{track.album}</span>
+        <span className={track.name.startsWith('[') ? `${styles.name} ${styles.unavailableName}` : styles.name}>
+          {track.name}
+        </span>
+        {track.artists.length > 0 && (
+          <span className={styles.artists}>{track.artists.join(', ')}</span>
+        )}
+        {track.album && <span className={styles.album}>{track.album}</span>}
+        {track.name.startsWith('[') && (
+          <span className={styles.trackId}>{track.id}</span>
+        )}
       </div>
 
       <div className={styles.meta}>

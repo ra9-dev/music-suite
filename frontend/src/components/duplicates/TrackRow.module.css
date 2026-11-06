@@ -107,3 +107,14 @@
   min-width: 52px;
   text-align: right;
 }
+
+.unavailableName {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.trackId {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}

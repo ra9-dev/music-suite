@@ -172,6 +172,36 @@ VITE_API_BASE_URL=http://127.0.0.1:8000
 
 ---
 
+## Spotify API reference
+
+**Always fetch the current docs before writing or modifying any Spotify API call.** Spotify has been actively deprecating endpoints; never rely on memory or training data for endpoint URLs, request formats, or scope names.
+
+Reference index: `https://developer.spotify.com/documentation/web-api/reference/`
+
+Individual endpoint URLs follow the pattern:
+`https://developer.spotify.com/documentation/web-api/reference/<endpoint-slug>`
+
+### Current endpoint map (as of 2026-06)
+
+| Operation | Method | URL | Key params | Scope |
+|-----------|--------|-----|------------|-------|
+| Current user profile | GET | `/me` | — | `user-read-private`, `user-read-email` |
+| User's playlists | GET | `/me/playlists` | `limit` max 50 | `playlist-read-private` |
+| Liked Songs tracks | GET | `/me/tracks` | `limit` max 50 | `user-library-read` |
+| Playlist metadata | GET | `/playlists/{id}` | `fields` | — |
+| Playlist tracks | GET | `/playlists/{id}/items` | `limit` max 50 | `playlist-read-private` |
+| Remove liked songs | DELETE | `/me/library` | `uris` query param (URIs, not IDs), max 40 | `user-library-modify` |
+| Remove playlist items | DELETE | `/playlists/{id}/items` | body `{"tracks":[{"uri","positions":[]}]}` | `playlist-modify-public/private` |
+
+### Deprecation pitfalls already hit in this project
+
+- `GET /playlists/{id}/tracks` → replaced by `GET /playlists/{id}/items` (response field also changed: `track` → `item`)
+- `DELETE /playlists/{id}/tracks` → replaced by `DELETE /playlists/{id}/items`
+- `DELETE /me/tracks` (body `{"ids":[...]}`) → replaced by `DELETE /me/library?uris=...`
+- Playlist items endpoint max `limit` is 50, not 100
+
+---
+
 ## Common issues
 
 | Symptom | Cause | Fix |
@@ -182,3 +212,4 @@ VITE_API_BASE_URL=http://127.0.0.1:8000
 | `KeyError: 'tracks'` on playlist list | Podcast/non-music item in playlist response | Already fixed — uses `.get()` |
 | `int_from_float` Pydantic error | `fuzz.ratio()` returns float, `fuzzy_score` typed as `int` | Already fixed — `round()` applied |
 | New OAuth scopes not working | Existing session doesn't have new scopes | Log out and log in again to re-consent |
+| `403 Forbidden` on Spotify mutation calls despite correct scope | Deprecated endpoint silently broken | Check CLAUDE.md endpoint map; fetch current docs before assuming format is correct |

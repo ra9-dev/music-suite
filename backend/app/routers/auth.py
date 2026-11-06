@@ -16,11 +16,12 @@ Why no cookies:
 Flow:
     1.  GET /api/auth/login
         → Generates PKCE verifier + challenge + state
-        → Stores verifier in _pkce_store (server-side dict, keyed by state)
+        → Stores verifier + state in httpOnly cookies (same origin as callback)
         → Redirects browser to accounts.spotify.com/authorize
 
     2.  Spotify redirects to GET /api/auth/callback?code=...&state=...
-        → Validates state against _pkce_store (CSRF protection)
+        → Validates state query param against the oauth_state cookie (CSRF)
+        → Reads code_verifier from the oauth_verifier cookie
         → Exchanges code for tokens via Spotify token endpoint
         → Fetches user profile
         → Creates session in SessionStore
@@ -62,7 +63,14 @@ SPOTIFY_SCOPES = " ".join([
 ])
 
 # Maps state → code_verifier. Consumed on first use (replay protection).
+# Server-side storage is used instead of cookies because the /login endpoint
+# is navigated to directly (127.0.0.1:8000), and the SameSite cookie behaviour
+# across the Spotify consent page redirect is unreliable in some browsers.
 _pkce_store: dict[str, str] = {}
+
+
+def _redirect_with_error(error: str) -> RedirectResponse:
+    return RedirectResponse(f"{settings.frontend_url}/?error={error}")
 
 
 @router.get("/login", summary="Initiate Spotify OAuth login")
@@ -76,7 +84,6 @@ async def login() -> RedirectResponse:
     challenge = generate_code_challenge(verifier)
     state = generate_state()
 
-    _pkce_store[state] = verifier
     log.info("login: generated state=%s", state[:8])
 
     params = urlencode({
@@ -90,6 +97,7 @@ async def login() -> RedirectResponse:
         "show_dialog": "true",
     })
 
+    _pkce_store[state] = verifier
     return RedirectResponse(f"{SPOTIFY_AUTH_URL}?{params}")
 
 
@@ -106,20 +114,18 @@ async def callback(
                 with ?sid=<session_id> in the URL.
     On failure: redirects to the frontend with ?error=<reason>.
     """
-    frontend_error_url = f"{settings.frontend_url}/?error="
-
     if error:
         log.warning("callback: Spotify returned error=%s", error)
-        return RedirectResponse(f"{frontend_error_url}{error}")
+        return _redirect_with_error(error)
 
     if not state:
         log.warning("callback: missing state param")
-        return RedirectResponse(f"{frontend_error_url}state_mismatch")
+        return _redirect_with_error("state_mismatch")
 
     verifier = _pkce_store.pop(state, None)
     if not verifier:
         log.warning("callback: state not found in pkce_store (state=%s...)", state[:8])
-        return RedirectResponse(f"{frontend_error_url}state_mismatch")
+        return _redirect_with_error("state_mismatch")
 
     # Exchange authorization code for tokens
     async with httpx.AsyncClient() as client:
@@ -137,7 +143,7 @@ async def callback(
 
     if resp.status_code != 200:
         log.error("callback: token exchange failed — %s %s", resp.status_code, resp.text)
-        return RedirectResponse(f"{frontend_error_url}token_exchange_failed")
+        return _redirect_with_error("token_exchange_failed")
 
     token_data = resp.json()
 
@@ -147,7 +153,7 @@ async def callback(
         user = await spotify.get_current_user()
     except Exception as exc:
         log.error("callback: failed to fetch Spotify profile — %s", exc)
-        return RedirectResponse(f"{frontend_error_url}profile_fetch_failed")
+        return _redirect_with_error("profile_fetch_failed")
 
     log.warning("callback: granted scopes=%s", token_data.get("scope", "<none>"))
 

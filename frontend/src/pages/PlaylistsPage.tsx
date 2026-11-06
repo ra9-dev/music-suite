@@ -20,13 +20,14 @@ interface Props {
 export function PlaylistsPage({ user }: Props) {
   const { playlists, loading, error } = usePlaylists();
 
+  const owned = playlists.filter((p) => p.is_owner);
+  const following = playlists.filter((p) => !p.is_owner);
+
   return (
     <div className={styles.page}>
       <Header user={user} />
 
       <main className={styles.main}>
-        <h2 className={styles.heading}>Your Playlists</h2>
-
         {loading && <LoadingSpinner message="Loading your playlists…" />}
 
         {error && (
@@ -39,8 +40,24 @@ export function PlaylistsPage({ user }: Props) {
           <p className={styles.empty}>No playlists found.</p>
         )}
 
-        {!loading && !error && playlists.length > 0 && (
-          <PlaylistGrid playlists={playlists} />
+        {!loading && !error && owned.length > 0 && (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.heading}>Your Library</h2>
+              <span className={styles.count}>{owned.length}</span>
+            </div>
+            <PlaylistGrid playlists={owned} />
+          </section>
+        )}
+
+        {!loading && !error && following.length > 0 && (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.heading}>Following</h2>
+              <span className={styles.count}>{following.length}</span>
+            </div>
+            <PlaylistGrid playlists={following} following />
+          </section>
         )}
       </main>
     </div>

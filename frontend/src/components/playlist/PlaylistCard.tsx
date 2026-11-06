@@ -11,21 +11,27 @@ import styles from './PlaylistCard.module.css';
 
 interface Props {
   playlist: Playlist;
+  following?: boolean;
 }
 
 const PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="%23333"%3E%3Crect width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" fill="%23666" font-size="48" text-anchor="middle" dominant-baseline="middle"%3E🎵%3C/text%3E%3C/svg%3E';
 
-export function PlaylistCard({ playlist }: Props) {
+export function PlaylistCard({ playlist, following = false }: Props) {
   const navigate = useNavigate();
   const canEdit = playlist.is_owner || playlist.is_collaborative;
 
   return (
-    <div className={styles.card}>
-      <img
-        src={playlist.image_url ?? PLACEHOLDER}
-        alt={playlist.name}
-        className={styles.image}
-      />
+    <div className={`${styles.card} ${following ? styles.followingCard : ''}`}>
+      <div className={styles.imageWrapper}>
+        <img
+          src={playlist.image_url ?? PLACEHOLDER}
+          alt={playlist.name}
+          className={styles.image}
+        />
+        {following && (
+          <span className={styles.followingBadge}>Following</span>
+        )}
+      </div>
       <div className={styles.body}>
         <h3 className={styles.name} title={playlist.name}>
           {playlist.name}
